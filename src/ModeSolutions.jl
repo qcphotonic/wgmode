@@ -141,27 +141,28 @@ function whole(θ, polardata)
     return θ, polardata
 end
 
-function radius_array(len, R, R_region, n_num)
+function radius_array(len, R, R_region, n_num, n_max)
     if R_region <= R
-        r = sort([density(x, R, R_region, n_num) for x = range(0, stop=R_region, length=len)])
+        r = sort([density(x, R, R_region, n_num, n_max) for x = range(0, stop=R_region, length=len)])
     else
         l1 = floor(Int, len*R/R_region)
         range_r1 = range(0, stop=R, length=l1)
         p = (R_region-R)/(len-l1)
         range_r2 = R+p:p:R_region
         range_r = vcat(range_r1, range_r2)
-        r = sort([density(x, R, R_region, n_num) for x = range_r])
+        r = sort([density(x, R, R_region, n_num, n_max) for x = range_r])
     end
     return r
 end
 
-function density(x, R, R_region, n_num)
+function density(x, R, R_region, n_num, n_max)
+    ratio = 2-n_num/n_max
     if R_region == R
-        return sqrt.(R^2-x^2*(x/R)^(1-1/n_num))
+        return (R^ratio-x^ratio)^(1/ratio)
     elseif R_region > R
-        return (x <= R) ? sqrt.(R^2-x^2*(x/R)^(1-1/n_num)) : R+(x-R)^2/(R_region-R)
+        return (x <= R) ? (R^ratio-x^ratio)^(1/ratio) : R+(x-R)^2/(R_region-R)
     else
-        return sqrt.(R_region^2-x^2*(x/R_region)^(1-1/n_num))
+        return (R_region^ratio-x^ratio)^(1/ratio)
     end
 end
 
@@ -176,10 +177,26 @@ function log_array(pd)
     return pd_log
 end
 
-function view_field(lambda, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
+function largest_n(lambda, n_num, l_num, n, R, mode)
+    sweep_step = 2000
+    n_pre = 0
+    n_now = 1
+    lambda2 = lambda
+    while n_pre != n_now
+        n_pre = n_now
+        lambda1 = lambda-1e-4
+        lambda2 += sweep_step
+        spectrum, = spectrum_l(l_num, [lambda1, lambda2], mode, n, R; Q_factor="open")
+        n_now = length(spectrum)
+    end
+    return n_now+n_num-1
+end
+    
+
+function view_field(lambda, n_num, l_num, m_num, n_max, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
     dsp = [30, 100]
     θ = range(0, stop=pi/2, length=dsp[2])
-    r = radius_array(dsp[1], R, R_region, n_num)
+    r = radius_array(dsp[1], R, R_region, n_num, n_max)
     
     polardata = zeros((dsp[1], dsp[2]))
     for i=1:length(r)
@@ -193,7 +210,7 @@ function view_field(lambda, n_num, l_num, m_num, n, R, mode, field_tp; quality="
         m = findfirst(x -> x > maximum(polardata)/1e4, polardata)[2]
         dspm = [150, m]
         θ = range(0, stop=pi*(m-1)/(2*(dsp[2]-1)), length=m)
-        r_fine = radius_array(dspm[1], R, R_region, n_num)
+        r_fine = radius_array(dspm[1], R, R_region, n_num, n_max)
         polardata1 = zeros((dspm[1], m))
         p = ProgressMeter.Progress(dspm[1]+1, 0.01, "Initializing... ")
         for i=1:length(r_fine)

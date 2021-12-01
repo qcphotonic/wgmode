@@ -121,21 +121,21 @@ end
 cf_modulus_dx(x, kappa, l, mode, rn) = gradient(x0->cf_modulus(x0, kappa, l, mode, rn), x)[1]
 
 # test before computing, make sure the appropriate match between l and wavelenght range
-function pre_loop(l, lambda, mode)
+function pre_loop(l, lambda, mode, n, R)
     b, a = [2*pi*R*1e3/i for i in lambda]
     kappa = -10
-    plot(y=[x0->cf_modulus(x0, kappa, l, mode, rn)], xmin=[a], xmax=[b], Coord.cartesian(ymin=0, ymax=10), Stat.func(1000), Geom.line)
+    Gadfly.plot(y=[x0->cf_modulus(x0, kappa, l, mode, n)], xmin=[a], xmax=[b], Coord.cartesian(ymin=0, ymax=10), Stat.func(1000), Geom.line)
 end
 
 # return spectrum, Q_radiation in the given wavelength window and given l number
-function spectrum_l(l, lambda, mode, rn, R, Q_factor)
+function spectrum_l(l, lambda, mode, n, R; Q_factor="open")
     b, a = [2*pi*R*1e3/i for i in lambda]
     kappa = -10
-    bar = minimum([cf_modulus(i, kappa, 0, mode, rn) for i in a:1e-2:b])
-    x_zeros = zeros_bsolver(x -> cf_modulus_dx(x, kappa, l, mode, rn), [a, b])
+    bar = minimum([cf_modulus(i, kappa, 0, mode, n) for i in a:1e-2:b])
+    x_zeros = zeros_bsolver(x -> cf_modulus_dx(x, kappa, l, mode, n), [a, b])
     xdata = zeros(0)
     for x in x_zeros
-        if cf_modulus(x, kappa, l, mode, rn) < bar + 10
+        if cf_modulus(x, kappa, l, mode, n) < bar + 10
             append!(xdata, x)
         end
     end
@@ -143,10 +143,10 @@ function spectrum_l(l, lambda, mode, rn, R, Q_factor)
     if Q_factor == "open"
         kappa_data = zeros(0)
         for x0 in xdata
-            opt = optimize(kappa->cf_modulus(x0, kappa, l, mode, rn), -20, 0)
+            opt = optimize(kappa->cf_modulus(x0, kappa, l, mode, n), -20, 0)
             append!(kappa_data, Optim.minimizer(opt))
         end
-        Qrad = [log10(rn)-i for i in kappa_data]
+        Qrad = [log10(n)-i for i in kappa_data]
     else
         Qrad = fill(Q_factor, (length(xdata),))
     end
@@ -155,7 +155,7 @@ function spectrum_l(l, lambda, mode, rn, R, Q_factor)
 end
 
 # spectrum calculation function
-function spectrum(lambda, mode, n_num, n, R; Q_factor=18)
+function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
 
     rn = n
     # set sweep parameters to find l_max
@@ -192,10 +192,10 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18)
     dlambda = lambda[2]-lambda[1]
     while var == 0
         lambda_sweep = [lambda[1], lambda_end]
-        spectrum, Qrad = spectrum_l(l, lambda_sweep, mode, rn, R, Q_factor)
+        spectrum, Qrad = spectrum_l(l, lambda_sweep, mode, rn, R, Q_factor=Q_factor)
         n = length(spectrum)
         if n != 0
-            if n > n_num
+            if n > n_num && option=="n_num depend"
                 if spectrum[n_num]>lambda[2]
                     var = 1
                 end
@@ -208,21 +208,21 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18)
                 lambda_end += dlambda
             end
             for i in 1:n
-                if spectrum[i] <= lambda[2] && i<=n_num && var == 0
+                if spectrum[i] <= lambda[2] && (i<=n_num || option=="all") && var == 0
                     append!(N, floor(Int, i))
                     append!(L, floor(Int, l))
                     append!(W, spectrum[i])
                     append!(Q, Qrad[i])
                 end
             end
-            if n > 1
+            if n > 1 && option == "n_num depend"
                 dsp = spectrum[1]-spectrum[end]
                 percentage = n*dsp/(dlambda*(n-1)+n_num*dsp)
                 if percentage > 1
                     percentage = 1
                 end
                 ProgressMeter.update!(p, floor(Int, 100*percentage))
-            else
+            elseif option == "n_num depend"
                 percentage = 1/(n_num+dlambda/(spectrum[1]-lambda[1]))
                 ProgressMeter.update!(p, floor(Int, 100*percentage))
             end
@@ -234,6 +234,14 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18)
             break
         end
         l -= 1
+        if option == "all"
+            var = 0
+            percentage=(1-l/start)^2
+            ProgressMeter.update!(p, floor(Int, 100*percentage))
+            if l < 0
+                break
+            end
+        end
     end
     p.desc = "Finished ✓      "
     ProgressMeter.update!(p, 101)
