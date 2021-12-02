@@ -1,1 +1,6 @@
+# ignore Mac system files
 .DS_Store
+
+# ignore test files
+*.ipynb
+!notebook.ipynb
