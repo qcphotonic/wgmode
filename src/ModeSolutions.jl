@@ -1,3 +1,65 @@
+#= Calculate the field distribution for each mode selected. View the field in the r-theta plane.
+    
+field(r, theta, lambda, l_num, m_num, n, R, mode, field; phi=0)
+    r::float64
+        radial parameter
+    theta::float64
+        polar parameter
+    phi::float64
+        azimuthal parameter
+    lambda::float64
+        wavelength
+    l_num::Int 
+        l mode number
+    m_num::Int 
+        m mode number
+    n::float64
+        refractive index
+    R::float64
+        radius of the dielectric sphere
+    mode::String ("TE" or "TM")
+        mode type
+    field::String ("E_r", "E_theta", "E_phi", "E", "E^2", "H_r", "H_theta", "H_phi", "H", "H^2",
+                    "nE_r", "nE_theta", "nE_phi", "nH_r", "nH_theta", "nH_phi")
+        field type
+    
+    return float64
+
+    Given all information above, return unnormalized field value at (r, theta, phi) for the chosen field type.
+
+
+view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
+    data{::DataFrames, ::float64, 1}
+        spectrum data or radial filled ratio (0<data<=1)
+    n_num::Int 
+        n mode number
+    l_num::Int 
+        l mode number
+    m_num::Int 
+        l mode number
+    n::float64
+        refractive index
+    R::float64
+        radius of the dielectric sphere
+    mode::String ("TE" or "TM")
+        mode type
+    field_tp::String ("E_r", "E_theta", "E_phi", "E", "E^2", "H_r", "H_theta", "H_phi", "H", "H^2",
+                    "nE_r", "nE_theta", "nE_phi", "nH_r", "nH_theta", "nH_phi")
+        field type
+    qualtiy::String ("coarse" or "fine")
+        image quality
+    scale::String ("normal" or "log")
+        colarbar scaling
+    R_region::float64
+        radius range of viewing, R_region could be less than R, equal to R, or larger than R.
+    half_angle::String ("yes" or "no")
+        determine whether return the field distribution in the theta range or not
+    
+    return {plot, ?::float64}
+    
+    Given all information above, viewing the field distribution in r-theta plane.
+=#
+
 using VectorSphericalHarmonics
 using SpecialFunctions
 using LinearAlgebra
@@ -183,16 +245,23 @@ end
     
 
 function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
-    lambda_df = @linq data |> 
-            where(:n .== n_num, :l .== l_num) |>
-            select(:wav = :wavelength)
-    lambda = lambda_df.wav[1]
     
-    l_df = @linq data |> 
-            select(:l_num = :l)
-    l_max = maximum(l_df.l_num)
+    if typeof(data) == DataFrame
+        lambda_df = @linq data |> 
+                where(:n .== n_num, :l .== l_num) |>
+                select(:wav = :wavelength)
+        lambda = lambda_df.wav[1]
+        
+        l_df = @linq data |> 
+                select(:l_num = :l)
+        l_max = maximum(l_df.l_num)
 
-    n_max = l_max*n_num/(l_max-l_num)
+        n_max = l_max*n_num/(l_max-l_num)
+    elseif (typeof(data) == Float64 && 0 < data < 1) || data == 1
+        n_max = floor(Int, n_num/data)
+    else
+        println("Error: $data is not a DataFrame nor float less than 1")
+    end
 
     dsp = [floor(Int, 40*(1+n_num/n_max)), 100] # precision of coarse quality
     θ = range(0, stop=pi/2, length=dsp[2])
