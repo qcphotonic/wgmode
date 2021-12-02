@@ -105,17 +105,21 @@ function field(r, theta, lambda, l_num, m_num, n, R, mode, field; phi=0)
         end
     elseif mode == "TM"
         if 1 <= type <= 3
-            return E_TM(r, theta, 0, lambda, l_num, m_num, n, R)[type]
+            return E_TM(r, theta, phi, lambda, l_num, m_num, n, R)[type]
         elseif type == 4
-            return norm(E_TM(r, theta, 0, lambda, l_num, m_num, n, R))
+            return norm(E_TM(r, theta, phi, lambda, l_num, m_num, n, R))
         elseif type == 5
-            return norm(E_TM(r, theta, 0, lambda, l_num, m_num, n, R))^2
+            return norm(E_TM(r, theta, phi, lambda, l_num, m_num, n, R))^2
         elseif 6 <= type <= 8
-            return H_TM(r, theta, 0, lambda, l_num, m_num, n, R)[type-5]
+            return H_TM(r, theta, phi, lambda, l_num, m_num, n, R)[type-5]
         elseif type == 9
-            return norm(H_TM(r, theta, 0, lambda, l_num, m_num, n, R))
+            return norm(H_TM(r, theta, phi, lambda, l_num, m_num, n, R))
         elseif type == 10
-            return norm(H_TM(r, theta, 0, lambda, l_num, m_num, n, R))^2
+            return norm(H_TM(r, theta, phi, lambda, l_num, m_num, n, R))^2
+        elseif 11 <= type <= 13
+            return norm(E_TM(r, theta, phi, lambda, l_num, m_num, n, R)[type-10])
+        elseif 14 <= type <= 16
+            return norm(H_TM(r, theta, phi, lambda, l_num, m_num, n, R)[type-13])
         else
             println("Error: field_type of $filed doesn't exist")
             return nothing
@@ -176,25 +180,21 @@ function log_array(pd)
     end
     return pd_log
 end
-
-function largest_n(lambda, n_num, l_num, n, R, mode)
-    sweep_step = 2000
-    n_pre = 0
-    n_now = 1
-    lambda2 = lambda
-    while n_pre != n_now
-        n_pre = n_now
-        lambda1 = lambda-1e-4
-        lambda2 += sweep_step
-        spectrum, = spectrum_l(l_num, [lambda1, lambda2], mode, n, R; Q_factor="open")
-        n_now = length(spectrum)
-    end
-    return n_now+n_num-1
-end
     
 
-function view_field(lambda, n_num, l_num, m_num, n_max, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
-    dsp = [30, 100]
+function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
+    lambda_df = @linq data |> 
+            where(:n .== n_num, :l .== l_num) |>
+            select(:wav = :wavelength)
+    lambda = lambda_df.wav[1]
+    
+    l_df = @linq data |> 
+            select(:l_num = :l)
+    l_max = maximum(l_df.l_num)
+
+    n_max = l_max*n_num/(l_max-l_num)
+
+    dsp = [floor(Int, 40*(1+n_num/n_max)), 100] # precision of coarse quality
     θ = range(0, stop=pi/2, length=dsp[2])
     r = radius_array(dsp[1], R, R_region, n_num, n_max)
     
@@ -208,16 +208,18 @@ function view_field(lambda, n_num, l_num, m_num, n_max, n, R, mode, field_tp; qu
 
     if quality == "fine"
         m = findfirst(x -> x > maximum(polardata)/1e4, polardata)[2]
-        dspm = [150, m]
+        dspm = [floor(Int, 400*(1+n_num/n_max)), m] # precision of fine quality
         θ = range(0, stop=pi*(m-1)/(2*(dsp[2]-1)), length=m)
         r_fine = radius_array(dspm[1], R, R_region, n_num, n_max)
         polardata1 = zeros((dspm[1], m))
+
         p = ProgressMeter.Progress(dspm[1]+1, 0.01, "Initializing... ")
         for i=1:length(r_fine)
             for j=1:length(θ)
                 pd = field(r_fine[i], θ[j], lambda, l_num, m_num, n, R, mode, field_tp)
                 polardata1[i, j] = isnan(pd) ? 0 : pd
             end
+            sleep(0.001)
             ProgressMeter.next!(p)
         end
         p.desc = "Computing...    "
@@ -231,7 +233,6 @@ function view_field(lambda, n_num, l_num, m_num, n_max, n, R, mode, field_tp; qu
             end
             ProgressMeter.next!(p)
         end
-
         for i=1:length(r_fine)
             c = vcat(polardata1[i,:][1:m-1], polardata2[i,:])
             if i == 1

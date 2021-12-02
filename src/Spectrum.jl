@@ -237,7 +237,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
         if option == "all"
             var = 0
             percentage=(1-l/start)^2
-            ProgressMeter.update!(p, floor(Int, 100*percentage))
+            ProgressMeter.update!(p, floor(Int, 100*percentage)>99 ? 100 : floor(Int, 100*percentage))
             if l < 0
                 break
             end
@@ -301,7 +301,7 @@ function view_spectrum(lambda, data, order; view_mode = "")
             pl = Gadfly.plot(L..., Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Qrad/-log10"), 
                  Theme(background_color=HSV(0, 1, 0), grid_line_width=0mm))
         end
-        set_default_plot_size(30cm, 15cm)
+        set_default_plot_size(28cm, 13cm)
         display(pl)
     end
 end
