@@ -79,6 +79,7 @@ using VectorSphericalHarmonics
 using SpecialFunctions
 using LinearAlgebra
 using GR
+using HCubature
 
 using ProgressMeter
 using DataFramesMeta
