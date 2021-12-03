@@ -1,19 +1,23 @@
 #= Calculate the Wispering Gallery eigenmodes (n, l, m). Generally speaking, WGM refers to the mode where n=1. We can compute modes of 
 any order n utilizing spectrum function. 
     
-pre_loop(l, lambda, mode)
+pre_loop(l, lambda, mode, n, R)
     l::Int 
         l mode number
     lambda::Array{float64}
         wavelenght searching range
     mode::String ("TE" or "TM")
         mode type
+    n::float64
+        refractive index
+    R::float64
+        radius of the dielectric sphere
     
     return plot
 
     Given a l mode number, plot all modes in the wavelenght range.
 
-spectrum(lambda, mode, n_num, n, R)
+spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     lambda::Array{float64}
         wavelenght searching range
     mode::String ("TE" or "TM")
@@ -24,19 +28,25 @@ spectrum(lambda, mode, n_num, n, R)
         refractive index
     R::float64
         radius of the dielectric sphere
+    Q_factor{::Int, "open"}
+        quality factor option, calculate quality factor with "open" or set an integer.
+    option::String ("n_num depend" or "all")
+        calculate radial number up to n_num or all possible modes
 
     return DataFrame
 
     Given electric and geometric parameters, focus on the interest wavelength region and mode, calcualte modes to order n.
 
-view_spectrum(lambda, data, order)
+view_spectrum(lambda, data, order; view_mode = "")
     lambda::Array{float64}
         wavelenght searching range
     data::DataFrame
         spectrum info
     order::Int
         n mode select
-
+    view_mode::String ("" or "details")
+        view mode option, "details" is all information display mode
+    
     return plot
 
     Given wavelength range and spectrum info, plot the spectrum
@@ -120,6 +130,32 @@ end
 # x derivative of the cf_modulus function
 cf_modulus_dx(x, kappa, l, mode, rn) = gradient(x0->cf_modulus(x0, kappa, l, mode, rn), x)[1]
 
+# material property: absorption curve 
+function absorption_curve(lambda)
+    Nx = 5.3e14
+    NY1 = 1.5e21
+    NY2 = 10e21
+    alpha_sp = 1.1e-26*lambda*exp(-10.7*(1-780/lambda)^2)*Nx
+    alpha_bp = 5.5e-27*lambda*exp(-9.6*(1-500/lambda)^2)*NY1
+    alpha_fe = 1.6e-23*(exp(-32*(1-480/lambda)^2)+exp(-15.4*(1-1100/lambda)^2)/16)*NY2
+    alpha_Bc = exp(19*(1-lambda/379))
+    alpha_Rc = exp(16.7*(1-6800/lambda))
+    return alpha_sp+alpha_bp+alpha_fe+alpha_Bc+alpha_Rc
+end
+
+# absorption Quality factor calculation
+function Q_ab(lambda)
+    return 1e7*2*pi/(lambda*absorption_curve(lambda))
+end
+
+# tatal Quality factor calculation
+function Q_total(Qrad, lambda)
+    Q_ab = 1e7*2*pi/(lambda*absorption_curve(lambda))
+    Qrad = 10^Qrad
+    Q = 1/(1/Q_ab+1/Qrad)
+    return log10(Q)
+end
+
 # test before computing, make sure the appropriate match between l and wavelenght range
 function pre_loop(l, lambda, mode, n, R)
     b, a = [2*pi*R*1e3/i for i in lambda]
@@ -193,6 +229,10 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     while var == 0
         lambda_sweep = [lambda[1], lambda_end]
         spectrum, Qrad = spectrum_l(l, lambda_sweep, mode, rn, R, Q_factor=Q_factor)
+        Qtt = zeros(0)
+        for (i, q) in enumerate(Qrad)
+            append!(Qtt, Q_total(q, spectrum[i]))
+        end
         n = length(spectrum)
         if n != 0
             if n > n_num && option=="n_num depend"
@@ -212,7 +252,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
                     append!(N, floor(Int, i))
                     append!(L, floor(Int, l))
                     append!(W, spectrum[i])
-                    append!(Q, Qrad[i])
+                    append!(Q, Qtt[i])
                 end
             end
             if n > 1 && option == "n_num depend"
@@ -246,7 +286,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     p.desc = "Finished ✓      "
     ProgressMeter.update!(p, 101)
 
-    df = DataFrame(n = Int.(N), l = Int.(L), wavelength = W, Qrad = Q)
+    df = DataFrame(n = Int.(N), l = Int.(L), wavelength = W, Qtt = Q)
     return sort!(df)
 end
 
@@ -262,7 +302,7 @@ function view_spectrum(lambda, data, order; view_mode = "")
     n = data.n 
     l = data.l 
     w = data.wavelength
-    q = data.Qrad
+    q = data.Qtt
 
     xp = zeros(0)
     yp = zeros(0)
@@ -280,7 +320,7 @@ function view_spectrum(lambda, data, order; view_mode = "")
         append!(wp, w[i], w[i])
         append!(qp, q[i], q[i])
     end
-    df = DataFrame(index=index, x_col=xp, y_col=yp, n=np, l=lp, wavelength=wp, Qrad=qp);
+    df = DataFrame(index=index, x_col=xp, y_col=yp, n=np, l=lp, wavelength=wp, Qtt=qp);
     gd = groupby(df, :n)
     N = length(gd)
     if order > N
@@ -292,13 +332,13 @@ function view_spectrum(lambda, data, order; view_mode = "")
         if order != 0 && view_mode == "details"
             fn = datag[order].wavelength[1]/140
             L=layer(gd[order], x=:x_col, y=:y_col, group=index, Geom.line, Theme(default_color=HSV(210, 1, C[order]), line_width=0.1mm))
-            pl = Gadfly.plot(L, Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Qrad/-log10"), 
-                 Guide.annotation(Compose.compose(context(), Compose.text([i for i=datag[order].wavelength], [i-1 for i=datag[order].Qrad], 
+            pl = Gadfly.plot(L, Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Q/-log10"), 
+                 Guide.annotation(Compose.compose(context(), Compose.text([i for i=datag[order].wavelength], [i-1 for i=datag[order].Qtt], 
                  [string(i) for i=datag[order].l]), stroke("gray50"), fontsize(fn*1pt))), Guide.xticks(ticks=datag[order].wavelength, orientation=:vertical), 
                  Theme(background_color=HSV(0, 1, 0), grid_line_width=0mm))
         else
             L=[layer(gd[i], x=:x_col, y=:y_col, group=index, Geom.line, Theme(default_color=HSV(210, 1, C[i]), line_width=0.1mm)) for i in 1:N]
-            pl = Gadfly.plot(L..., Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Qrad/-log10"), 
+            pl = Gadfly.plot(L..., Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Q/-log10"), 
                  Theme(background_color=HSV(0, 1, 0), grid_line_width=0mm))
         end
         set_default_plot_size(28cm, 13cm)
