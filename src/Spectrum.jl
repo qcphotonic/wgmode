@@ -149,8 +149,8 @@ function Q_ab(lambda)
 end
 
 # tatal Quality factor calculation
-function Q_total(Qrad, lambda)
-    Q_ab = 1e7*2*pi/(lambda*absorption_curve(lambda))
+function Q_total(n, Qrad, lambda)
+    Q_ab = 1e7*2*pi*n/(lambda*absorption_curve(lambda))
     Qrad = 10^Qrad
     Q = 1/(1/Q_ab+1/Qrad)
     return log10(Q)
@@ -231,7 +231,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
         spectrum, Qrad = spectrum_l(l, lambda_sweep, mode, rn, R, Q_factor=Q_factor)
         Qtt = zeros(0)
         for (i, q) in enumerate(Qrad)
-            append!(Qtt, Q_total(q, spectrum[i]))
+            append!(Qtt, Q_total(n, q, spectrum[i]))
         end
         n = length(spectrum)
         if n != 0
@@ -286,7 +286,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     p.desc = "Finished ✓      "
     ProgressMeter.update!(p, 101)
 
-    df = DataFrame(n = Int.(N), l = Int.(L), wavelength = W, Qtt = Q)
+    df = DataFrame(n = Int.(N), l = Int.(L), wavelength = W, Q = Q)
     return sort!(df)
 end
 
