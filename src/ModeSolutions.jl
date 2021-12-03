@@ -270,7 +270,7 @@ function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="co
     if typeof(data) == DataFrame
         lambda_df = @linq data |> 
                 where(:n .== n_num, :l .== l_num) |>
-                select(:wav == :wavelength)
+                select(:wav = :wavelength)
         lambda = lambda_df.wav[1]
         
         l_max = maximum(data.l)
