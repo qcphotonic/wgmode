@@ -58,6 +58,21 @@ view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", sc
     return {plot, ?::float64}
     
     Given all information above, viewing the field distribution in r-theta plane.
+
+
+overlap_field(field_parameters, n, R; R_region=R, digit=3)
+    field_parameters::Vector{Vector{Any}}
+        selected mode number, mode type and field type for two fields
+    n::float64
+        refractive index
+    R::float64
+        radius of the dielectric sphere
+    R_region::float64
+        radius range of viewing, R_region could be less than R, equal to R, or larger than R.
+    digit::Int
+        effective number of the result
+
+    Given the info of selected two fields and structural parameters, calculate the field overlapping.
 =#
 
 using VectorSphericalHarmonics
@@ -66,6 +81,7 @@ using LinearAlgebra
 using GR
 
 using ProgressMeter
+using DataFramesMeta
 
 c = 299792458
 
@@ -140,6 +156,7 @@ function H_TM(r, theta, phi, lambda, l, m, n, R)
     return n*fr*fo/c
 end
 
+# field selector
 function field(r, theta, lambda, l_num, m_num, n, R, mode, field; phi=0)
     field_type = ["E_r", "E_theta", "E_phi", "E", "E^2", "H_r", "H_theta", "H_phi", "H", "H^2",
                     "nE_r", "nE_theta", "nE_phi", "nH_r", "nH_theta", "nH_phi"]
@@ -192,7 +209,7 @@ function field(r, theta, lambda, l_num, m_num, n, R, mode, field; phi=0)
     end
 end
 
-
+# fill the whole plane with objective field
 function whole(θ, polardata)
     nq = length(θ)
     θ = collect(θ)
@@ -207,6 +224,7 @@ function whole(θ, polardata)
     return θ, polardata
 end
 
+# sampling array
 function radius_array(len, R, R_region, n_num, n_max)
     if R_region <= R
         r = sort([density(x, R, R_region, n_num, n_max) for x = range(0, stop=R_region, length=len)])
@@ -221,6 +239,7 @@ function radius_array(len, R, R_region, n_num, n_max)
     return r
 end
 
+# sampling function
 function density(x, R, R_region, n_num, n_max)
     ratio = 2-n_num/n_max
     if R_region == R
@@ -232,6 +251,7 @@ function density(x, R, R_region, n_num, n_max)
     end
 end
 
+# log view mode assistance
 function log_array(pd)
     s = size(pd)
     pd_log = zeros(s)
@@ -243,18 +263,16 @@ function log_array(pd)
     return pd_log
 end
     
-
+# display the field distribution in r-theta plane
 function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
     
     if typeof(data) == DataFrame
         lambda_df = @linq data |> 
                 where(:n .== n_num, :l .== l_num) |>
-                select(:wav = :wavelength)
+                select(:wav == :wavelength)
         lambda = lambda_df.wav[1]
         
-        l_df = @linq data |> 
-                select(:l_num = :l)
-        l_max = maximum(l_df.l_num)
+        l_max = maximum(data.l)
 
         n_max = l_max*n_num/(l_max-l_num)
     elseif (typeof(data) == Float64 && 0 < data < 1) || data == 1
@@ -344,3 +362,42 @@ function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="co
     end
 end
 
+# find the effective integration region
+function integral_region(lambda,l_num, m_num, n, R, mode, field_type; error=1e-2)
+    r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, R], accuracy=5)
+    if m_num>2
+        theta_border = first_zeros_bsolver(theta->norm(field(50, theta, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, pi/2], accuracy=0.5)
+    else
+        theta_border = 0
+    end
+    if r_border === nothing && theta_border !== nothing
+        r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, "E"))-error, [0, R], accuracy=5)
+    end
+    return r_border, theta_border
+end
+
+function mutual_region(b1, b2)
+    return maximum([b1[1], b2[1]]), maximum([b1[2], b2[2]])
+end
+
+# Calculate two fields overlaping
+function overlap_field(field_parameters, n, R; R_region=R, digit=3)
+    error = 10.0^(-floor(Int, digit/2)-1)
+    rtol = 10.0^(-digit)
+    lambda1, l_num1, m_num1, mode1, field_type1 = field_parameters[1]
+    lambda2, l_num2, m_num2, mode2, field_type2 = field_parameters[2]
+    region1 = integral_region(lambda1,l_num1, m_num1, n, R, mode1, field_type1, error=error)
+    region2 = integral_region(lambda2,l_num2, m_num2, n, R, mode2, field_type2, error=error)
+    if region1[1] !== nothing && region1[2] !== nothing && region2[1] !== nothing && region2[2] !== nothing
+        mregion = mutual_region(region1, region2)
+        region = [mregion[1], mregion[2], R_region, pi/2]
+        print(region)
+        f1(p) = conj(field(p[1], p[2], lambda1, l_num1, m_num1, n, R, mode1, field_type1))
+        f2(p) = field(p[1], p[2], lambda2, l_num2, m_num2, n, R, mode2, field_type2)
+        f3(p) = p[1]^2*sin(p[2])*f1(p)*f2(p)
+        integration = (m_num1 == m_num2 && l_num1 == l_num2) ? hcubature(f3, region[1:2], region[3:4], rtol=rtol)[1]*2*pi : 0
+        return round(4*pi*integration, sigdigits=digit)
+    else
+        return 0
+    end
+end

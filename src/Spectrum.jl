@@ -302,7 +302,7 @@ function view_spectrum(lambda, data, order; view_mode = "")
     n = data.n 
     l = data.l 
     w = data.wavelength
-    q = data.Qtt
+    q = data.Q
 
     xp = zeros(0)
     yp = zeros(0)
@@ -333,7 +333,7 @@ function view_spectrum(lambda, data, order; view_mode = "")
             fn = datag[order].wavelength[1]/140
             L=layer(gd[order], x=:x_col, y=:y_col, group=index, Geom.line, Theme(default_color=HSV(210, 1, C[order]), line_width=0.1mm))
             pl = Gadfly.plot(L, Coord.cartesian(xmin=lambda[1], xmax=lambda[2], ymin=0), Guide.xlabel("Wavelength/nm"), Guide.ylabel("Q/-log10"), 
-                 Guide.annotation(Compose.compose(context(), Compose.text([i for i=datag[order].wavelength], [i-1 for i=datag[order].Qtt], 
+                 Guide.annotation(Compose.compose(context(), Compose.text([i for i=datag[order].wavelength], [i-1 for i=datag[order].Q], 
                  [string(i) for i=datag[order].l]), stroke("gray50"), fontsize(fn*1pt))), Guide.xticks(ticks=datag[order].wavelength, orientation=:vertical), 
                  Theme(background_color=HSV(0, 1, 0), grid_line_width=0mm))
         else

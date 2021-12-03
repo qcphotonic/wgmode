@@ -54,3 +54,4 @@ function detuning(data_f, data_shg; threshold = "")
         return sort!(df, rev=true)
     end
 end
+
