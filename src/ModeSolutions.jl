@@ -268,9 +268,10 @@ end
 function view_field(data, n_num, l_num, m_num, n, R, mode, field_tp; quality="coarse", scale="normal", R_region=R, half_angle="no")
     
     if typeof(data) == DataFrame
-        lambda_df = @linq data |> 
-                where(:n .== n_num, :l .== l_num) |>
-                select(:wav = :wavelength)
+        lambda_df = @chain data begin
+                         @rsubset :n == n_num && :l == l_num
+                         @select(:wav = :wavelength)
+        end
         lambda = lambda_df.wav[1]
         
         l_max = maximum(data.l)
