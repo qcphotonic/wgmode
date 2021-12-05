@@ -393,12 +393,11 @@ function overlap_field(field_parameters, n, R; R_region=R, digit=3)
     if region1[1] !== nothing && region1[2] !== nothing && region2[1] !== nothing && region2[2] !== nothing
         mregion = mutual_region(region1, region2)
         region = [mregion[1], mregion[2], R_region, pi/2]
-        print(region)
         f1(p) = conj(field(p[1], p[2], lambda1, l_num1, m_num1, n, R, mode1, field_type1))
         f2(p) = field(p[1], p[2], lambda2, l_num2, m_num2, n, R, mode2, field_type2)
         f3(p) = p[1]^2*sin(p[2])*f1(p)*f2(p)
         integration = (m_num1 == m_num2 && l_num1 == l_num2) ? hcubature(f3, region[1:2], region[3:4], rtol=rtol)[1]*2*pi : 0
-        return round(4*pi*integration, sigdigits=digit)
+        return round(4*integration*1e-18, sigdigits=digit)
     else
         return 0
     end
