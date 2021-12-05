@@ -82,6 +82,7 @@ function cf_modulus(x0, kappa, l, mode, n)
     return abs(val)^2
 end
 
+besselyr(l, x) = l == 1/2 ? bessely(3/2, x)/bessely(1/2, x) : 2*l/x - 1/besselyr(l - 1, x)
 # the real critical function
 function cf_real(x0, l, mode, n)
     nk = n
@@ -91,7 +92,7 @@ function cf_real(x0, l, mode, n)
         P = 1/nk
     end
     x = nk*x0
-    val = bessely(l-1/2, x0)/bessely(l+1/2, x0)-P*besselj(l-1/2, x)/besselj(l+1/2, x)-l*(1/x0-P/x)
+    val = 1/besselyr(l-1/2, x0)-P*besselj(l-1/2, x)/besselj(l+1/2, x)-l*(1/x0-P/x)
     return val
 end
 
