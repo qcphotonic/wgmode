@@ -69,6 +69,16 @@ using CSV
 using Printf: @sprintf
 
 
+# bessely(l-1/2, x0)/bessely(l+1/2, x0) overflows when l is much larger than fixed x0. Possible solution but not supported!
+#= function besselho(l, x)
+        try
+            p = besselh(l-1/2, 2, x)/besselh(l+1/2, 2, x)
+        catch e
+            besselhr(l, x) = l < 1 ? besselh(l+1, 2, x)/besselh(l, 2, x) : 2*l/x - 1/besselhr(l - 1, x)
+            p = 1/besselhr(l-1/2, x)
+        end
+    end
+=#
 # abs^2 of the complex critical function
 function cf_modulus(x0, kappa, l, mode, n)
     nk = n+im*10.0^kappa
@@ -82,7 +92,15 @@ function cf_modulus(x0, kappa, l, mode, n)
     return abs(val)^2
 end
 
-besselyr(l, x) = l == 1/2 ? bessely(3/2, x)/bessely(1/2, x) : 2*l/x - 1/besselyr(l - 1, x)
+#= function besselyo(l, x)
+        try
+            p = bessely(l-1/2, x)/bessely(l+1/2, x)
+        catch e
+            besselyr(l, x) = l < 1 ? bessely(l+1, x)/bessely(l, x) : 2*l/x - 1/besselyr(l - 1, x)
+            p = 1/besselyr(l-1/2, x)
+        end
+    end
+=#
 # the real critical function
 function cf_real(x0, l, mode, n)
     nk = n
@@ -92,7 +110,7 @@ function cf_real(x0, l, mode, n)
         P = 1/nk
     end
     x = nk*x0
-    val = 1/besselyr(l-1/2, x0)-P*besselj(l-1/2, x)/besselj(l+1/2, x)-l*(1/x0-P/x)
+    val = bessely(l-1/2, x0)/bessely(l+1/2, x0)-P*besselj(l-1/2, x)/besselj(l+1/2, x)-l*(1/x0-P/x)
     return val
 end
 
@@ -206,10 +224,14 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     ProgressMeter.printvalues!(p, (); color = p.color, truncate = false)
     sleep(0.1)
 
-    # sweep to find l_max=start
+    # sweep to find l_max=start!
     while true
         l_zeros = zeros_bsolver(l->cf_real(2*pi*R*1e3/lambda[1], l, mode, rn), [start, start+2*sweep_step])
         if length(l_zeros) > 4 && start+2*sweep_step-l_zeros[end] > l_zeros[end]-l_zeros[end-4]
+            start = floor(l_zeros[end])
+            break
+        elseif length(l_zeros) == 0
+            l_zeros = zeros_bsolver(l->cf_real(2*pi*R*1e3/lambda[1], l, mode, rn), [start-sweep_step, start])
             start = floor(l_zeros[end])
             break
         end
