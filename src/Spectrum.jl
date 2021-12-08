@@ -246,6 +246,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     L = zeros(0)
     W = zeros(0)
     Q = zeros(0)
+    M = String[]
     var1 = 1
     l = start
     dlambda = lambda[2]-lambda[1]
@@ -276,6 +277,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
                     append!(L, floor(Int, l))
                     append!(W, spectrum[i])
                     append!(Q, Qtt[i])
+                    append!(M, [mode])
                 end
             end
             if n > 1 && option == "n_num depend"
@@ -308,8 +310,7 @@ function spectrum(lambda, mode, n_num, n, R; Q_factor=18, option="n_num depend")
     end
     p.desc = "Finished ✓      "
     ProgressMeter.update!(p, 101)
-
-    df = DataFrame(n = Int.(N), l = Int.(L), wavelength = W, Q = Q)
+    df = DataFrame(n = Int.(N), l = Int.(L), mode = M, wavelength = W, Q = Q)
     return sort!(df)
 end
 

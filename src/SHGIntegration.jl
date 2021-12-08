@@ -17,7 +17,7 @@ overlap_nonlinearity(field_parameters, n, R, d; digit=3)
     Given the info of selected two fields and structural parameters, calculate the nonlinearity coupling strenght.
 =#
 
-include("ModeSolutions.jl")
+include("modesolutions.jl")
 using ProgressMeter
 
 c = 299792458
@@ -335,10 +335,12 @@ function theta_depends(theta, m_a, m_b, d, coupling_types)
     end
 end
 
-function overlap_nonlinearity(field_parameters, n, R, d; digit=3)
+function overlap_nonlinearity(field_parameters, n, R, d; digit=3, category = "")
     error = 10.0^(-floor(Int, digit/2)-1)
     rtol = 10.0^(-digit)
     contribution = complex(zeros(0))
+    lambda1, l_num1, m_num1, mode1 = field_parameters[1]
+    lambda2, l_num2, m_num2, mode2 = field_parameters[2]
     region1_r = integral_region(lambda1, l_num1, m_num1, n, R, mode1, "E_r", error=error)
     region1_theta = integral_region(lambda1, l_num1, m_num1, n, R, mode1, "E_theta", error=error)
     region1_phi = integral_region(lambda1, l_num1, m_num1, n, R, mode1, "E_phi", error=error)
@@ -366,12 +368,17 @@ function overlap_nonlinearity(field_parameters, n, R, d; digit=3)
     p.desc = "Finished ✓      "
     ProgressMeter.next!(p)
     gnl_complex = 1e-12*sum(contribution)*coefficient/(G1*sqrt(abs(G2)))
+    # println((G1*sqrt(abs(G2))))
     if real(gnl_complex)==0 || imag(gnl_complex)==0
         gnl = abs(gnl_complex)
-        println("gnl = $gnl")
+        if category != "sweep"
+            println("gnl = $gnl")
+        end
     else
         gnl = gnl_complex
-        println("Waring! gnl_complex = $gnl_complex")
+        if category != "sweep"  
+            println("Waring! gnl_complex = $gnl_complex")
+        end
     end
     return gnl, contribution
 end
@@ -387,12 +394,12 @@ function overlap_nonlinearity_calculation(field_parameters, n, R, d, region1, re
         f3(p) = conj(field(p[1], p[2], lambda2, l_num2, m_num2, n, R, mode2, field_type3))
         f4(p) = p[1]^2*f1(p)*f2(p)*f3(p)*theta_depends(p[2], m_num1, m_num2, d, coupling_types)
         integration = abs(2*m_num1-m_num2) <= 3 ? hcubature(f4, region[1:2], region[3:4], rtol=rtol)[1]*4 : 0
-        return integration*1e-18
+        return integration*1e-12
     else
         return 0
     end
 end
-    
+
 
     
 

@@ -366,15 +366,41 @@ end
 
 # find the effective integration region
 function integral_region(lambda,l_num, m_num, n, R, mode, field_type; error=1e-2)
-    r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, R], accuracy=5)
+    samplingr = zeros(0)
+    samplingtheta = zeros(0)
+    for r = range(0, R, length = 20)
+        for theta = range(0, pi/2, length = 20)
+            if norm(field(r, theta, lambda, l_num, m_num, n, R, mode, field_type))-error > 0
+                append!(samplingr, r)
+                append!(samplingtheta, theta)
+            end
+        end
+    end
+    if length(samplingr) == 0
+        r_border = nothing
+    end
+    if length(samplingtheta) == 0
+        theta_border = nothing
+    end
+    if length(samplingr) > 0 && length(samplingtheta) > 0
+        r_border = minimum(samplingr)
+        # theta_border_r = samplingtheta[argmin(samplingr)]
+        theta_border = minimum(samplingtheta)
+        # r_border_theta = samplingr[argmin(samplingtheta)]
+    end
+    #=
+    r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, R], accuracy=0.1)
+    print(r_border)
     if m_num>2
-        theta_border = first_zeros_bsolver(theta->norm(field(50, theta, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, pi/2], accuracy=0.5)
+        opt = optimize(radius->first_zeros_bsolver(theta->norm(field(radius, theta, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, pi/2], accuracy=0.1), r_border, R)
+        theta_border = first_zeros_bsolver(theta->norm(field(Optim.minimizer(opt), theta, lambda, l_num, m_num, n, R, mode, field_type))-error, [0, pi/2], accuracy=0.1)
     else
         theta_border = 0
     end
     if r_border === nothing && theta_border !== nothing
-        r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, "E"))-error, [0, R], accuracy=5)
+        r_border = first_zeros_bsolver(r->norm(field(r, pi/2, lambda, l_num, m_num, n, R, mode, "E"))-error, [0, R], accuracy=0.1)
     end
+    =#
     return r_border, theta_border
 end
 
