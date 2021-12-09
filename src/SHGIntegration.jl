@@ -350,8 +350,10 @@ function overlap_nonlinearity(field_parameters, n, R, d; digit=3, category = "")
     region = [region1_r, region1_theta, region1_phi, region2_r, region2_theta, region2_phi]
     coupling = ["rrr", "rrt", "rrp", "rtr", "rtt", "rtp", "rpr", "rpt", "rpp", "ttr", "ttt", "ttp", "tpr", "tpt", "tpp", "ppr", "ppt", "ppp"]
     field_type = ["E_r", "E_theta", "E_phi"]
-    p = Progress(20, dt=0.5, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:yellow)
-    p.desc = "Computing...    "
+    if category != "sweep"
+        p = Progress(20, dt=0.5, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:yellow)
+        p.desc = "Computing...    "
+    end 
     for (i, coupling_types) in enumerate(coupling)
         k1 = floor(Int, floor((i-1)/9)+1+floor((i-1)/15))
         k2 = floor(Int, floor((i-1)/3)%3+1+floor((i-1)/9)-floor((i-1)/15))
@@ -359,14 +361,20 @@ function overlap_nonlinearity(field_parameters, n, R, d; digit=3, category = "")
         k4 = floor(Int, (i-1)%3+1)
         integral = overlap_nonlinearity_calculation(field_parameters, n, R, d, region[k1], region[k2], region[k3], field_type[k1], field_type[k2], field_type[k4], coupling_types, rtol)
         append!(contribution, integral)
-        ProgressMeter.next!(p)
+        if category != "sweep"
+            ProgressMeter.next!(p)
+        end
     end
     coefficient = 12*pi^2*c*sqrt(6.62607004*1e-34*c/(2*8.8541878*1e-12))*1e9*sqrt(1e9)/(lambda1*sqrt(lambda2)*n^3)
     G1 = overlap_field([vcat(field_parameters[1], ["E"]), vcat(field_parameters[1], ["E"])], n, R)
-    ProgressMeter.next!(p)
+    if category != "sweep"
+        ProgressMeter.next!(p)
+    end
     G2 = overlap_field([vcat(field_parameters[2], ["E"]), vcat(field_parameters[2], ["E"])], n, R)
-    p.desc = "Finished ✓      "
-    ProgressMeter.next!(p)
+    if category != "sweep"
+        p.desc = "Finished ✓      "
+        ProgressMeter.next!(p)
+    end
     gnl_complex = 1e-12*sum(contribution)*coefficient/(G1*sqrt(abs(G2)))
     # println((G1*sqrt(abs(G2))))
     if real(gnl_complex)==0 || imag(gnl_complex)==0
@@ -394,7 +402,7 @@ function overlap_nonlinearity_calculation(field_parameters, n, R, d, region1, re
         f3(p) = conj(field(p[1], p[2], lambda2, l_num2, m_num2, n, R, mode2, field_type3))
         f4(p) = p[1]^2*f1(p)*f2(p)*f3(p)*theta_depends(p[2], m_num1, m_num2, d, coupling_types)
         integration = abs(2*m_num1-m_num2) <= 3 ? hcubature(f4, region[1:2], region[3:4], rtol=rtol)[1]*4 : 0
-        return integration*1e-12
+        return integration*1e-18
     else
         return 0
     end

@@ -1,4 +1,5 @@
 using DataFrames
+using ProgressMeter
 
 function detuning(data_f, data_shg; threshold = "")
     n_f = data_f.n
@@ -65,25 +66,29 @@ function overlap_array(df, n, R, d, limitation, cutoff)
     delta_f, delta_shg = limitation
 
     ratio_new = zeros(0)
+
     n_f_new = zeros(0)
     l_f_new = zeros(0)
     m_f_new = zeros(0)
     wav_f_new = zeros(0)
     Q_f_new = zeros(0)
     mode_f_new = String[]
+
     n_shg_new = zeros(0)
     l_shg_new = zeros(0)
     m_shg_new = zeros(0)
     wav_shg_new = zeros(0)
     Q_shg_new = zeros(0)
-    Ratio = zeros(0)
     mode_shg_new = String[]
-    g_new = complex(zeros(0))
+
+    g_new = zeros(0)
     gtt_new = complex(zeros(0))
 
+    r = Progress(cutoff+1, dt=0.5, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:blue)
+    r.desc = "Computing...    "
     for i = 1: cutoff
         slice = df[i, :]
-
+        
         lambda1 = slice.wavelength_f
         n_num1 = slice.n_f
         l_num1 = slice.l_f
@@ -102,10 +107,10 @@ function overlap_array(df, n, R, d, limitation, cutoff)
             for m_num2 = l_num2:-1:l_num2-delta_shg+1
                 if m_num2-3 <= 2*m_num1 <= m_num2+3
                     field_parameters_nonlinearity = [[lambda1, l_num1, m_num1, mode1], [lambda2, l_num2, m_num2, mode2]]
-                    g, contribution = overlap_nonlinearity(field_parameters_nonlinearity, n, R, d; digit=1)
+                    g, contribution = overlap_nonlinearity(field_parameters_nonlinearity, n, R, d; digit=1, category="sweep")
                     
                     append!(ratio_new, ratio)
-                    append!(g_new, g)
+                    append!(g_new, abs(g))
                     append!(gtt_new, g*ratio)
 
                     append!(n_f_new, n_num1)
@@ -124,11 +129,15 @@ function overlap_array(df, n, R, d, limitation, cutoff)
                 end
             end
         end
+        sleep(0.02)
+        ProgressMeter.next!(r)
+        
     end
 
+    r.desc = "Finished ✓      "
+    ProgressMeter.next!(r)
     df = DataFrame(g = g_new, g_total = gtt_new, ratio_g = ratio_new, n_f = Int.(n_f_new), l_f = Int.(l_f_new), m_f = Int.(m_f_new), mode_f = mode_f_new, wavelength_f = wav_f_new, 
          Q_f = Q_f_new, n_shg = Int.(n_shg_new), l_shg = Int.(l_shg_new), m_shg = Int.(m_shg_new), mode_shg = mode_shg_new, wavelength_shg = wav_shg_new, Q_shg = Q_shg_new)
-    return df
+    return sort!(df, rev=true)    
 end
 
-# sort!(df, rev=true)    
