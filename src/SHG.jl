@@ -129,7 +129,7 @@ function overlap_array(df, n, R, d, limitation, cutoff)
 
         for m_num1 = l_num1:-1:l_num1-delta_f+1
             for m_num2 = l_num2:-1:l_num2-delta_shg+1
-                if m_num2-3 <= 2*m_num1 <= m_num2+3
+                if m_num2-3 <= 2*m_num1 <= m_num2+3 && 1 <= delta_f <= 2*l_num1 && abs(l_num2-delta_shg+1) <= l_num2
                     field_parameters_nonlinearity = [[lambda1, l_num1, m_num1, mode1], [lambda2, l_num2, m_num2, mode2]]
                     g, contribution = overlap_nonlinearity(field_parameters_nonlinearity, n, R, d; digit=1, category="sweep")
                     
@@ -155,14 +155,13 @@ function overlap_array(df, n, R, d, limitation, cutoff)
         end
         sleep(0.02)
         ProgressMeter.next!(r)
-        
     end
 
     r.desc = "Finished ✓      "
     ProgressMeter.next!(r)
     df = DataFrame(g = g_new, g_total = gtt_new, ratio_g = ratio_new, n_f = Int.(n_f_new), l_f = Int.(l_f_new), m_f = Int.(m_f_new), mode_f = mode_f_new, wavelength_f = wav_f_new, 
          Q_f = Q_f_new, n_shg = Int.(n_shg_new), l_shg = Int.(l_shg_new), m_shg = Int.(m_shg_new), mode_shg = mode_shg_new, wavelength_shg = wav_shg_new, Q_shg = Q_shg_new)
-    return sort!(df, rev=true)    
+    return sort!(df, [:g], rev=true)
 end
 
 function overlap_nonlinearity(field_parameters, n, R, d; digit=3, category = "")
