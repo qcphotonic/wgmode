@@ -81,7 +81,7 @@ function detuning(data_f, data_shg; threshold = "")
     end
 end
 
-function overlap_array(df, n, R, d, limitation, cutoff)
+function overlap_array(df, n, R, d, limitation, cutoff; pgbar = "on")
     L = length(detune.ratio_g)
     if cutoff > L
         println("Error! cutoff=$cutoff should be smaller than mode pairs=$L")
@@ -107,9 +107,10 @@ function overlap_array(df, n, R, d, limitation, cutoff)
 
     g_new = zeros(0)
     gtt_new = complex(zeros(0))
-
-    r = Progress(cutoff+1, dt=0.5, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:blue)
-    r.desc = "Computing...    "
+    if pgbar == "on"
+        r = Progress(cutoff+1, dt=0.5, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:blue)
+        r.desc = "Computing...    "
+    end
     for i = 1: cutoff
         slice = df[i, :]
         
@@ -153,12 +154,15 @@ function overlap_array(df, n, R, d, limitation, cutoff)
                 end
             end
         end
-        sleep(0.02)
-        ProgressMeter.next!(r)
+        if pgbar == "on"
+            sleep(0.02)
+            ProgressMeter.next!(r)
+        end
     end
-
-    r.desc = "Finished ✓      "
-    ProgressMeter.next!(r)
+    if pgbar == "on"
+        r.desc = "Finished ✓      "
+        ProgressMeter.next!(r)
+    end 
     df = DataFrame(g = g_new, g_total = gtt_new, ratio_g = ratio_new, n_f = Int.(n_f_new), l_f = Int.(l_f_new), m_f = Int.(m_f_new), mode_f = mode_f_new, wavelength_f = wav_f_new, 
          Q_f = Q_f_new, n_shg = Int.(n_shg_new), l_shg = Int.(l_shg_new), m_shg = Int.(m_shg_new), mode_shg = mode_shg_new, wavelength_shg = wav_shg_new, Q_shg = Q_shg_new)
     return sort!(df, [:g], rev=true)
@@ -237,3 +241,51 @@ function overlap_nonlinearity_calculation(field_parameters, n, R, d, region1, re
     end
 end
 
+function d_rotation(d, thetax, thetay, thetaz)
+    r11 = cos(thetay)^2*cos(thetaz)^2
+    r12 = (sin(thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(thetax))^2
+    r13 = (-sin(thetax)*sin(thetaz) + sin(thetay)*cos(thetax)*cos(thetaz))^2
+    r14 = sin(thetax)^2*sin(thetay)*sin(2*thetaz)/2 - sin(thetax)*sin(thetay)^2*cos(thetax)*cos(thetaz)^2 + sin(2*thetax)*sin(thetaz)^2/2 - sin(thetay)*sin(thetaz)*cos(thetax)^2*cos(thetaz)
+    r15 = (sin(thetax)*sin(thetaz) - sin(thetay)*cos(thetax)*cos(thetaz))*cos(thetay)*cos(thetaz)
+    r16 = (sin(thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(thetax))*cos(thetay)*cos(thetaz)
+    r21 = sin(thetaz)^2*cos(thetay)^2
+    r22 = (-sin(thetax)*sin(thetay)*sin(thetaz) + cos(thetax)*cos(thetaz))^2
+    r23 = (sin(thetax)*cos(thetaz) + sin(thetay)*sin(thetaz)*cos(thetax))^2
+    r24 = (-sin(thetay)^2*sin(thetaz)^2 + cos(thetaz)^2)*sin(thetax)*cos(thetax) - sin(thetax)^2*sin(thetay)*sin(thetaz)*cos(thetaz) + sin(thetay)*sin(thetaz)*cos(thetax)^2*cos(thetaz)
+    r25 = -(sin(thetax)*cos(thetaz) + sin(thetay)*sin(thetaz)*cos(thetax))*sin(thetaz)*cos(thetay)
+    r26 = (sin(thetax)*sin(thetay)*sin(thetaz) - cos(thetax)*cos(thetaz))*sin(thetaz)*cos(thetay)
+    r31 = sin(thetay)^2
+    r32 = sin(thetax)^2*cos(thetay)^2
+    r33 = cos(thetax)^2*cos(thetay)^2
+    r34 = -sin(thetax)*cos(thetax)*cos(thetay)^2
+    r35 = sin(2*thetay)*cos(thetax)/2
+    r36 = -sin(thetax)*sin(thetay)*cos(thetay)
+    r41 = -2*sin(thetay)*sin(thetaz)*cos(thetay)
+    r42 = 2*(sin(thetax)*sin(thetay)*sin(thetaz) - cos(thetax)*cos(thetaz))*sin(thetax)*cos(thetay)
+    r43 = 2*(sin(thetax)*cos(thetaz) + sin(thetay)*sin(thetaz)*cos(thetax))*cos(thetax)*cos(thetay)
+    r44 = (-sin(thetax)^2*cos(thetaz) - 2*sin(thetax)*sin(thetay)*sin(thetaz)*cos(thetax) + cos(thetax)^2*cos(thetaz))*cos(thetay)
+    r45 = sin(thetax)*sin(thetay)*cos(thetaz) - sin(thetaz)*cos(thetax)*cos(2*thetay)
+    r46 = sin(thetax)*sin(thetaz)*cos(2*thetay) + sin(thetay)*cos(thetax)*cos(thetaz)
+    r51 = sin(2*thetay)*cos(thetaz)
+    r52 = -2*(sin(thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(thetax))*sin(thetax)*cos(thetay)
+    r53 = 2*(sin(thetax)*sin(thetaz) - sin(thetay)*cos(thetax)*cos(thetaz))*cos(thetax)*cos(thetay)
+    r54 = (sin(2*thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(2*thetax))*cos(thetay)
+    r55 = sin(thetax)*sin(thetay)*sin(thetaz) + cos(thetax)*cos(2*thetay)*cos(thetaz)
+    r56 = (sin(thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(thetax))*sin(thetay) - sin(thetax)*cos(thetay)^2*cos(thetaz)
+    r61 = -2*sin(thetaz)*cos(thetay)^2*cos(thetaz)
+    r62 = -2*sin(thetax)^2*sin(thetay)^2*sin(thetaz)*cos(thetaz) + 2*sin(thetax)*sin(thetay)*cos(thetax)*cos(2*thetaz) + 2*sin(thetaz)*cos(thetax)^2*cos(thetaz)
+    r63 = sin(thetax)^2*sin(2*thetaz) - 2*sin(thetax)*sin(thetay)*cos(thetax)*cos(thetaz)^2 + sin(2*thetax)*sin(thetay)*sin(thetaz)^2 - 2*sin(thetay)^2*sin(thetaz)*cos(thetax)^2*cos(thetaz)
+    r64 = -(cos(2*thetay)/2 - 3/2)*sin(2*thetax)*sin(2*thetaz)/2 + sin(thetax)^2*sin(thetay)*cos(2*thetaz) - sin(thetay)*cos(thetax)^2*cos(2*thetaz)
+    r65 = (-sin(thetax)*sin(thetaz)^2 + sin(thetax)*cos(thetaz)^2 + sin(thetay)*sin(2*thetaz)*cos(thetax))*cos(thetay)
+    r66 = (-2*sin(thetax)*sin(thetay)*sin(thetaz)*cos(thetaz) + cos(thetax)*cos(2*thetaz))*cos(thetay)
+    Rb = [[r11, r12, r13, r14, r15, r16], [r21, r22, r23, r24, r25, r26], [r31, r32, r33, r34, r35, r36], [r41, r42, r43, r44, r45, r46], [r51, r52, r53, r54, r55, r56], [r61, r62, r63, r64, r65, r66]]
+    Ra = [[cos(thetay)*cos(thetaz), -sin(thetaz)*cos(thetay), sin(thetay)], 
+         [sin(thetax)*sin(thetay)*cos(thetaz) + sin(thetaz)*cos(thetax), -sin(thetax)*sin(thetay)*sin(thetaz) + cos(thetax)*cos(thetaz), -sin(thetax)*cos(thetay)], 
+         [sin(thetax)*sin(thetaz) - sin(thetay)*cos(thetax)*cos(thetaz), sin(thetax)*cos(thetaz) + sin(thetay)*sin(thetaz)*cos(thetax), cos(thetax)*cos(thetay)]]
+    Ra = hcat(Ra...)'
+    Rb = hcat(Rb...)'
+    d = hcat(d...)'
+    d = Ra*d*Rb
+    d = [[d[1, 1], d[1, 2], d[1, 3], d[1, 4], d[1, 5], d[1, 6]], [d[2, 1], d[2, 2], d[2, 3], d[2, 4], d[2, 5], d[2, 6]], [d[3, 1], d[3, 2], d[3, 3], d[3, 4], d[3, 5], d[3, 6]]]
+    return d
+end
