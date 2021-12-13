@@ -289,3 +289,38 @@ function d_rotation(d, thetax, thetay, thetaz)
     d = [[d[1, 1], d[1, 2], d[1, 3], d[1, 4], d[1, 5], d[1, 6]], [d[2, 1], d[2, 2], d[2, 3], d[2, 4], d[2, 5], d[2, 6]], [d[3, 1], d[3, 2], d[3, 3], d[3, 4], d[3, 5], d[3, 6]]]
     return d
 end
+
+function shade(f, x0; epsilon=1e-3, steps = 30)
+    k = pi/10
+    delta = 2
+    maxi = 0
+    while delta>epsilon && steps > 0
+        a1 = f(x0[1], x0[2], x0[3])
+        a = [f(x0[1]+k, x0[2], x0[3]), f(x0[1]-k, x0[2], x0[3]), f(x0[1], x0[2]+k, x0[3]), f(x0[1], x0[2]-k, x0[3]), f(x0[1], x0[2], x0[3]+k), f(x0[1], x0[2], x0[3]-k)]
+        m = maximum(a)
+        i = argmax(a)
+        if m>a1
+            if i==1
+                x0[1]+=k
+            elseif i==2
+                x0[1]-=k
+            elseif i==3
+                x0[2]+=k
+            elseif i==4
+                x0[2]-=k
+            elseif i==5
+                x0[3]+=k
+            else
+                x0[3]-=k
+            end
+            delta = abs(m-a1)/a1
+            steps-=1
+            println("maximum found is $a1, at position $x0, delta=$delta, steps=$steps")
+        else
+            k = 0.2*k
+            println(k)
+        end
+        maxi = a1
+    end
+    return maxi, x0, delta
+end
